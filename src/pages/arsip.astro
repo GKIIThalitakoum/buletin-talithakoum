@@ -1,0 +1,56 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Arsip Edisi">
+  <div id="app">
+    <div class="bg-navy-950 px-5 pt-6 pb-5 rounded-b-3xl">
+      <h1 class="font-serif text-white text-xl font-medium">Arsip Edisi</h1>
+    </div>
+    <div class="p-4 space-y-3">
+      <div class="skeleton h-20 rounded-2xl"></div>
+      <div class="skeleton h-20 rounded-2xl"></div>
+      <div class="skeleton h-20 rounded-2xl"></div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  import { getArsipEdisi, formatTanggalIndo } from "../lib/sheets.js";
+
+  function escapeHtml(str: string) {
+    const div = document.createElement("div");
+    div.textContent = str ?? "";
+    return div.innerHTML;
+  }
+
+  async function render() {
+    const list = document.querySelector("#app > div:last-child")!;
+    try {
+      const edisiList = await getArsipEdisi();
+
+      if (edisiList.length === 0) {
+        list.innerHTML = `<p class="text-center text-navy-800/60 text-sm py-8">Belum ada edisi yang dipublikasikan.</p>`;
+        return;
+      }
+
+      list.innerHTML = edisiList
+        .map(
+          (e) => `
+        <a href="/?minggu=${encodeURIComponent(String(e.minggu_ke))}" class="block bg-white rounded-2xl border border-cream-200 p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="bg-gold-500 text-navy-950 text-xs font-medium px-2.5 py-1 rounded-full">Minggu Ke-${escapeHtml(String(e.minggu_ke))}</span>
+            <span class="text-xs text-navy-800/50">${escapeHtml(formatTanggalIndo(e.tanggal))}</span>
+          </div>
+          <h3 class="font-serif text-lg font-semibold text-navy-950 mb-0.5">${escapeHtml(e.tema_khotbah || "-")}</h3>
+          <p class="text-sm text-navy-800/60">${escapeHtml(e.nats || "")}</p>
+        </a>`
+        )
+        .join("");
+    } catch (err) {
+      list.innerHTML = `<p class="text-center text-navy-800/70 text-sm py-8">${escapeHtml(err instanceof Error ? err.message : String(err))}</p>`;
+    }
+  }
+
+  render();
+</script>
