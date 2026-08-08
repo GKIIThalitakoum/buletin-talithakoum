@@ -1,0 +1,142 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Susunan Ibadah">
+  <div id="app">
+    <div class="bg-navy-950 px-5 pt-6 pb-5 rounded-b-3xl">
+      <h1 class="font-serif text-white text-xl font-medium">Susunan Ibadah &amp; Petugas</h1>
+    </div>
+    <div class="p-4">
+      <div class="skeleton h-12 rounded-xl mb-4"></div>
+      <div class="skeleton h-64 rounded-2xl"></div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  import { getEdisi, getPetugasByMinggu, getSusunanByMinggu } from "../lib/sheets.js";
+
+  function escapeHtml(str: string) {
+    const div = document.createElement("div");
+    div.textContent = str ?? "";
+    return div.innerHTML;
+  }
+
+  let mingguIni: string | number = "";
+  let mingguDepan: string | number = "";
+  let activeTab: "ini" | "depan" = "ini";
+  let dataCache: Record<string, { petugas: any[]; susunan: any[] }> = {};
+
+  function renderBody() {
+    const body = document.getElementById("body-content")!;
+    const key = activeTab;
+    const data = dataCache[key];
+
+    if (!data) {
+      body.innerHTML = `<p class="text-center text-navy-800/60 text-sm py-8">Data untuk minggu ini belum tersedia di sheet.</p>`;
+      return;
+    }
+
+    const petugasHtml =
+      data.petugas.length === 0
+        ? `<p class="text-sm text-navy-800/60">Belum ada data petugas.</p>`
+        : data.petugas
+            .map(
+              (p) => `
+        <div class="flex items-center justify-between py-2.5 border-b border-cream-200 last:border-0">
+          <span class="text-sm text-navy-800/70">${escapeHtml(p.pelayanan)}</span>
+          <span class="text-sm font-medium text-navy-950 text-right">${escapeHtml(p.nama)}</span>
+        </div>`
+            )
+            .join("");
+
+    const liturgiHtml =
+      data.susunan.length === 0
+        ? `<p class="text-sm text-navy-800/60">Urutan liturgi belum tersedia.</p>`
+        : data.susunan
+            .map(
+              (s, i) => `
+        <details class="border-b border-cream-200 last:border-0 py-2.5" ${i === 0 ? "open" : ""}>
+          <summary class="flex items-center gap-3 cursor-pointer list-none">
+            <span class="w-6 h-6 rounded-full bg-gold-500 text-navy-950 text-xs font-semibold flex items-center justify-center flex-shrink-0">${s.no_urut}</span>
+            <span class="font-medium text-navy-950 text-sm">${escapeHtml(s.acara)}</span>
+          </summary>
+          <div class="pl-9 pt-1 text-sm text-navy-800/70 space-y-0.5">
+            ${s.petugas ? `<p>${escapeHtml(s.petugas)}</p>` : ""}
+            ${s.keterangan ? `<p>${escapeHtml(s.keterangan)}</p>` : ""}
+          </div>
+        </details>`
+            )
+            .join("");
+
+    body.innerHTML = `
+      <section class="bg-white rounded-2xl border border-cream-200 p-4 mb-4">
+        <p class="text-xs font-semibold tracking-wide text-navy-800/60 uppercase mb-2">Petugas Pelayanan</p>
+        ${petugasHtml}
+      </section>
+      <section class="bg-white rounded-2xl border border-cream-200 p-4">
+        <p class="text-xs font-semibold tracking-wide text-navy-800/60 uppercase mb-2">Urutan Liturgi Ibadah</p>
+        ${liturgiHtml}
+      </section>`;
+  }
+
+  function renderTabs() {
+    const wrap = document.getElementById("app")!.querySelector("div:last-child")!;
+    wrap.innerHTML = `
+      <div class="grid grid-cols-2 bg-white rounded-xl border border-cream-200 p-1 mb-4">
+        <button id="tab-ini" class="py-2.5 rounded-lg text-sm font-medium"></button>
+        <button id="tab-depan" class="py-2.5 rounded-lg text-sm font-medium"></button>
+      </div>
+      <div id="body-content"></div>
+    `;
+    updateTabStyles();
+    document.getElementById("tab-ini")!.addEventListener("click", () => {
+      activeTab = "ini";
+      updateTabStyles();
+      renderBody();
+    });
+    document.getElementById("tab-depan")!.addEventListener("click", () => {
+      activeTab = "depan";
+      updateTabStyles();
+      renderBody();
+    });
+    renderBody();
+  }
+
+  function updateTabStyles() {
+    const btnIni = document.getElementById("tab-ini")!;
+    const btnDepan = document.getElementById("tab-depan")!;
+    btnIni.textContent = "Minggu ini";
+    btnDepan.textContent = "Minggu depan";
+    btnIni.className = `py-2.5 rounded-lg text-sm font-medium ${activeTab === "ini" ? "bg-navy-950 text-white" : "text-navy-800/60"}`;
+    btnDepan.className = `py-2.5 rounded-lg text-sm font-medium ${activeTab === "depan" ? "bg-navy-950 text-white" : "text-navy-800/60"}`;
+  }
+
+  async function init() {
+    try {
+      const edisi = await getEdisi();
+      if (!edisi) throw new Error('Tidak ada edisi berstatus "published".');
+
+      mingguIni = edisi.minggu_ke;
+      mingguDepan = Number(edisi.minggu_ke) + 1;
+
+      const [petugasIni, susunanIni, petugasDepan, susunanDepan] = await Promise.all([
+        getPetugasByMinggu(mingguIni),
+        getSusunanByMinggu(mingguIni),
+        getPetugasByMinggu(mingguDepan),
+        getSusunanByMinggu(mingguDepan),
+      ]);
+
+      dataCache["ini"] = { petugas: petugasIni, susunan: susunanIni };
+      dataCache["depan"] = { petugas: petugasDepan, susunan: susunanDepan };
+
+      renderTabs();
+    } catch (err) {
+      const wrap = document.getElementById("app")!.querySelector("div:last-child")!;
+      wrap.innerHTML = `<p class="text-center text-navy-800/70 text-sm py-8">${escapeHtml(err instanceof Error ? err.message : String(err))}</p>`;
+    }
+  }
+
+  init();
+</script>
