@@ -1,0 +1,44 @@
+@import "tailwindcss";
+@import "@fontsource/lora/400.css";
+@import "@fontsource/lora/500.css";
+@import "@fontsource/lora/600.css";
+@import "@fontsource/lora/400-italic.css";
+
+@theme {
+  --font-serif: "Lora", serif;
+
+  --color-navy-950: #0f1f3d;
+  --color-navy-900: #14284d;
+  --color-navy-800: #1d3a6e;
+  --color-navy-700: #2a4d8f;
+
+  --color-cream-50: #faf6ee;
+  --color-cream-100: #f4ecd8;
+  --color-cream-200: #ece0c4;
+
+  --color-gold-400: #e0b568;
+  --color-gold-500: #d4a24c;
+  --color-gold-600: #b8853a;
+  --color-gold-900: #4a3616;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-cream-50);
+  -webkit-tap-highlight-color: transparent;
+  padding-bottom: 76px;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--color-cream-200) 25%, var(--color-cream-100) 37%, var(--color-cream-200) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-loading 1.4s ease infinite;
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
