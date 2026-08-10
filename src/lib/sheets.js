@@ -1,49 +1,85 @@
-import { SPREADSHEET_ID, SHEET_NAMES } from "./config.js";
+import { PUBLISHED_BASE_URL, SHEET_GIDS } from "./config.js";
 
-/**
- * Membangun URL Google Visualization API (gviz) untuk satu tab/sheet.
- * Endpoint ini bekerja selama sharing sheet diset "Anyone with the link - Viewer".
- */
-function gvizUrl(sheetName) {
-  const base = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq`;
-  return `${base}?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+function csvUrl(gid) {
+  return `${PUBLISHED_BASE_URL}?output=csv&gid=${encodeURIComponent(gid)}`;
 }
 
 /**
- * Mengambil satu tab sebagai array of object, key = header kolom (baris 1 sheet).
- * Melempar Error dengan pesan jelas jika SPREADSHEET_ID belum diganti atau fetch gagal.
+ * Parser CSV ringan (menangani field berisi koma/tanda kutip, sesuai RFC4180).
+ * Diperlukan karena banyak nilai (nama petugas, dsb.) mengandung koma.
  */
-export async function fetchSheet(sheetName) {
-  if (!SPREADSHEET_ID || SPREADSHEET_ID.startsWith("GANTI_")) {
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += c;
+      }
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ",") {
+        row.push(field);
+        field = "";
+      } else if (c === "\r") {
+        // skip
+      } else if (c === "\n") {
+        row.push(field);
+        rows.push(row);
+        row = [];
+        field = "";
+      } else {
+        field += c;
+      }
+    }
+  }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows.filter((r) => !(r.length === 1 && r[0] === ""));
+}
+
+/**
+ * Mengambil satu tab (berdasarkan gid) sebagai array of object,
+ * key = header kolom (baris 1 sheet).
+ */
+export async function fetchSheet(gidKey) {
+  const gid = SHEET_GIDS[gidKey];
+
+  if (!gid || String(gid).startsWith("GANTI_")) {
     throw new Error(
-      "SPREADSHEET_ID belum diatur. Buka src/lib/config.js dan isi dengan ID Google Sheets Anda."
+      `GID untuk "${gidKey}" belum diatur. Buka src/lib/config.js dan isi SHEET_GIDS.`
     );
   }
 
-  const res = await fetch(gvizUrl(sheetName));
+  const res = await fetch(csvUrl(gid));
   if (!res.ok) {
     throw new Error(
-      `Gagal mengambil data dari tab "${sheetName}" (status ${res.status}). Periksa nama tab dan pengaturan sharing sheet.`
+      `Gagal mengambil data (status ${res.status}). Periksa apakah sheet masih "Published to web".`
     );
   }
 
   const text = await res.text();
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1) {
-    throw new Error(
-      `Respons tidak dikenali dari tab "${sheetName}". Pastikan Spreadsheet ID benar dan sheet dapat diakses publik (viewer).`
-    );
-  }
+  const rows = parseCsv(text);
+  if (rows.length === 0) return [];
 
-  const data = JSON.parse(text.substring(start, end + 1));
-  const cols = data.table.cols.map((c, i) => c.label || c.id || `col${i}`);
-
-  return (data.table.rows || []).map((row) => {
+  const headers = rows[0];
+  return rows.slice(1).map((r) => {
     const obj = {};
-    cols.forEach((label, i) => {
-      const cell = row.c ? row.c[i] : null;
-      obj[label] = cell && cell.v !== null && cell.v !== undefined ? cell.v : "";
+    headers.forEach((h, i) => {
+      obj[h] = r[i] !== undefined ? r[i] : "";
     });
     return obj;
   });
@@ -61,14 +97,21 @@ export function formatTanggalIndo(dateInput) {
   return d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
 }
 
+export function formatJam(jamInput) {
+  if (jamInput === "" || jamInput === null || jamInput === undefined) return "";
+  const num = Number(jamInput);
+  if (isNaN(num)) return String(jamInput);
+  return num.toString().padStart(2, "0") + ".00 WITA";
+}
+
 /**
  * Mengambil edisi yang statusnya "published".
  * Jika mingguKe diberikan, cari edisi spesifik itu (dipakai untuk buka Arsip).
  * Jika tidak, kembalikan edisi dengan minggu_ke tertinggi (edisi terbaru).
  */
 export async function getEdisi(mingguKe = null) {
-  const rows = await fetchSheet(SHEET_NAMES.EDISI);
-  const published = rows.filter((r) => String(r.status).toLowerCase() === "published");
+  const rows = await fetchSheet("EDISI");
+  const published = rows.filter((r) => String(r.status).toLowerCase().trim() === "published");
 
   if (mingguKe !== null) {
     return published.find((r) => String(r.minggu_ke) === String(mingguKe)) || null;
@@ -79,46 +122,45 @@ export async function getEdisi(mingguKe = null) {
 }
 
 export async function getArsipEdisi() {
-  const rows = await fetchSheet(SHEET_NAMES.EDISI);
-  const published = rows.filter((r) => String(r.status).toLowerCase() === "published");
+  const rows = await fetchSheet("EDISI");
+  const published = rows.filter((r) => String(r.status).toLowerCase().trim() === "published");
   published.sort((a, b) => Number(b.minggu_ke) - Number(a.minggu_ke));
   return published;
 }
 
 export async function getJadwalByMinggu(mingguKe) {
-  const rows = await fetchSheet(SHEET_NAMES.JADWAL);
+  const rows = await fetchSheet("JADWAL");
   return rows.filter((r) => String(r.minggu_ke) === String(mingguKe));
 }
 
 export async function getPetugasByMinggu(mingguKe) {
-  const rows = await fetchSheet(SHEET_NAMES.PETUGAS);
+  const rows = await fetchSheet("PETUGAS");
   return rows.filter((r) => String(r.minggu_ke) === String(mingguKe));
 }
 
 export async function getSusunanByMinggu(mingguKe) {
-  const rows = await fetchSheet(SHEET_NAMES.SUSUNAN);
+  const rows = await fetchSheet("SUSUNAN");
   return rows
     .filter((r) => String(r.minggu_ke) === String(mingguKe))
     .sort((a, b) => Number(a.no_urut) - Number(b.no_urut));
 }
 
 export async function getPokokDoaByMinggu(mingguKe) {
-  const rows = await fetchSheet(SHEET_NAMES.POKOK_DOA);
+  const rows = await fetchSheet("POKOK_DOA");
   return rows.filter((r) => String(r.minggu_ke) === String(mingguKe));
 }
 
 export async function getInformasiByMinggu(mingguKe) {
-  const rows = await fetchSheet(SHEET_NAMES.INFORMASI);
+  const rows = await fetchSheet("INFORMASI");
   return rows.filter((r) => String(r.minggu_ke) === String(mingguKe));
 }
 
 /**
  * Saldo dihitung kumulatif (bukan diketik manual): jumlah (debet - kredit)
  * seluruh baris sejak baris "Saldo Awal" pertama per kategori kas.
- * Ini menghindari human-error dari perhitungan manual mingguan.
  */
 export async function getKeuanganKumulatif() {
-  const rows = await fetchSheet(SHEET_NAMES.KEUANGAN);
+  const rows = await fetchSheet("KEUANGAN");
   const kategoriOrder = [];
   const kategoris = {};
 
@@ -138,12 +180,12 @@ export async function getKeuanganKumulatif() {
 }
 
 export async function getKeuanganDetailByMinggu(kategoriKas, mingguKe) {
-  const rows = await fetchSheet(SHEET_NAMES.KEUANGAN);
+  const rows = await fetchSheet("KEUANGAN");
   return rows.filter(
     (r) => r.kategori_kas === kategoriKas && String(r.minggu_ke) === String(mingguKe)
   );
 }
 
 export async function getKontakPengurus() {
-  return fetchSheet(SHEET_NAMES.KONTAK);
+  return fetchSheet("KONTAK");
 }
