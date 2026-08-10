@@ -17,9 +17,11 @@ import Layout from "../layouts/Layout.astro";
 </Layout>
 
 <script>
-  import { getEdisi, getJadwalByMinggu, formatTanggalIndo } from "../lib/sheets.js";
+  import { getEdisi, getJadwalByMinggu, formatTanggalIndo, formatJam } from "../lib/sheets.js";
 
   const subheader = document.getElementById("subheader")!;
+  const container = document.createElement("div");
+  container.className = "p-4 space-y-3";
 
   function escapeHtml(str: string) {
     const div = document.createElement("div");
@@ -48,7 +50,7 @@ import Layout from "../layouts/Layout.astro";
         <div class="bg-white rounded-2xl border border-cream-200 p-4">
           <div class="flex items-center justify-between mb-2">
             <p class="font-medium text-navy-900 text-sm">${escapeHtml(it.hari_tanggal)}</p>
-            <span class="bg-cream-100 text-navy-900 text-xs font-medium px-2.5 py-1 rounded-full">${escapeHtml(it.jam)}</span>
+            <span class="bg-cream-100 text-navy-900 text-xs font-medium px-2.5 py-1 rounded-full">${escapeHtml(formatJam(it.jam))}</span>
           </div>
           <h3 class="font-serif text-lg font-semibold text-navy-950 mb-1">${escapeHtml(it.kegiatan)}</h3>
           <p class="text-sm text-navy-800/70">${escapeHtml(it.tempat)}</p>
