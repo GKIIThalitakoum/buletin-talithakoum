@@ -79,8 +79,7 @@ import Layout from "../layouts/Layout.astro";
             ${edisi.preposisi ? `<p class="text-sm text-navy-800/70 mb-2">${escapeHtml(edisi.preposisi)}</p>` : ""}
           </section>
 
-          
-            href="https://wa.me/?text=${shareText}"
+          <a href="https://wa.me/?text=${shareText}"
             target="_blank"
             rel="noopener"
             class="flex items-center justify-center gap-2 bg-[#25D366] text-white font-medium py-3.5 rounded-2xl"
