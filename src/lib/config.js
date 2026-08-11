@@ -1,7 +1,7 @@
 // URL dasar hasil "Publish to web" (File > Share > Publish to web).
 // Diambil dari kotak link yang muncul, bagian sebelum "?output=...".
 export const PUBLISHED_BASE_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRGAEeE3Krym8T5OSZU28lC8Wzs3kK70mKUHwq3RGnMDaCiaoo_gGy0EwY1CZDGPa7gVmb7igOj9nc0/pub";
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vQg0ONima2vJWIslzAVaW8FvCJybwP3KdroyAmwGIEU6U6DuRGjJPjYhFwd1CbeY7vxZhJXpVgqq0pf/pub";
 
 // Kode "gid" tiap tab. Diambil dari URL saat tab tersebut aktif dibuka,
 // bagian setelah "#gid=".
